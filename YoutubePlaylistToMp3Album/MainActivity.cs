@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using Android.App;
 using Android.Content;
@@ -30,23 +31,20 @@ namespace YoutubePlaylistToMp3Album
             button.Click += delegate
             {
                 string playlistHtml = GetPlaylistHtmlFile("https://www.youtube.com/playlist?list=PLXxpXtJUHTPFlS6dHpsst4BcVnqqPL0tk");
+                string albumName = "Tech Trance/Harder Trance/Techno";
 
-                ISet<string> videoIds = GetVideoIdsFromPlaylistHtml(playlistHtml);
+                IEnumerable<string> videoIds = GetVideoIdsFromPlaylistHtml(playlistHtml);
 
                 foreach (var videoId in videoIds)
                 {
-                    DownloadAndProcessAudio(videoId);
+                    DownloadAndProcessAudio(videoId, albumName);
                 }
-                
-
-                string link = "https://www.youtube.com/watch?v=dlQSJCKmbNc&list=PLXxpXtJUHTPFlS6dHpsst4BcVnqqPL0tk&index=1";
-                IEnumerable<VideoInfo> videoInfos = DownloadUrlResolver.GetDownloadUrls(link);
             };
         }
 
-        private void DownloadAndProcessAudio(string videoId)
+        private void DownloadAndProcessAudio(string videoId, string albumName)
         {
-            string filePath = DownloadAudio(videoId);
+            string filePath = DownloadAudio(videoId, albumName);
             ProcessAudio(filePath);
         }
 
@@ -55,12 +53,38 @@ namespace YoutubePlaylistToMp3Album
             throw new NotImplementedException();
         }
 
-        private string DownloadAudio(string videoId)
+        private string DownloadAudio(string videoId, string albumName)
         {
-            throw new NotImplementedException();
+            string location = "/storage/external_SD/Muzika";
+            string youtubeLink =
+                "https://www.youtube.com/watch?v=" + videoId;
+
+            IEnumerable<VideoInfo> videoInfos = DownloadUrlResolver.GetDownloadUrls(youtubeLink);
+
+            VideoInfo video = videoInfos
+                .Where(info => info.AudioType == AudioType.Aac)
+                .OrderByDescending(info => info.AudioBitrate)
+                .FirstOrDefault();
+
+            if (video == null)
+            {
+                throw new NullReferenceException("Audio was not found");
+            }
+
+            /*
+             * If the video has a decrypted signature, decipher it
+             */
+            if (video.RequiresDecryption)
+            {
+                DownloadUrlResolver.DecryptDownloadUrl(video);
+            }
+
+            var downloadUrl = video.DownloadUrl;
+
+            return "";
         }
 
-        private ISet<string> GetVideoIdsFromPlaylistHtml(string playlistHtml)
+        private IEnumerable<string> GetVideoIdsFromPlaylistHtml(string playlistHtml)
         {
             HashSet<string> result = new HashSet<string>();
 
